@@ -1,0 +1,21 @@
+# Entornos virtuales y cachés de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Variables de entorno y secretos locales
+.env
+.env.*
+!.env.example
+
+# CSV de entrada generado y resultados del ETL
+data/raw/*.csv
+data/bronze/
+data/silver/
+data/gold/
+
+# Archivos temporales del sistema y del editor
+.DS_Store
+Thumbs.db
+.vscode/

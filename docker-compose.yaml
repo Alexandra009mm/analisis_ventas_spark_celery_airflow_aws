@@ -1,0 +1,88 @@
+x-etl-common: &etl-common
+  image: spark-exe-etl:local
+  working_dir: /app/app
+  volumes:
+    - ./data:/app/data
+  environment:
+    CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-etl}:${RABBITMQ_DEFAULT_PASS:-etl_dev_password}@rabbitmq:5672//
+    CELERY_RESULT_BACKEND: rpc://
+    PYTHONPATH: /opt/spark/python/lib/pyspark.zip:/opt/spark/python/lib/py4j-0.10.9.9-src.zip
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-etl}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-etl_dev_password}
+    volumes:
+      - rabbitmq_data_313:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  worker-bronze:
+    <<: *etl-common
+    command:
+      - celery
+      - -A
+      - celery_app:app
+      - worker
+      - --loglevel=INFO
+      - --queues=bronze
+      - --pool=solo
+      - --concurrency=1
+      - --hostname=bronze@%h
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  worker-silver:
+    <<: *etl-common
+    command:
+      - celery
+      - -A
+      - celery_app:app
+      - worker
+      - --loglevel=INFO
+      - --queues=silver
+      - --pool=solo
+      - --concurrency=1
+      - --hostname=silver@%h
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  worker-gold:
+    <<: *etl-common
+    command:
+      - celery
+      - -A
+      - celery_app:app
+      - worker
+      - --loglevel=INFO
+      - --queues=gold
+      - --pool=solo
+      - --concurrency=1
+      - --hostname=gold@%h
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  dispatcher:
+    <<: *etl-common
+    build: .
+    command: ["python3", "dispatch.py"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      worker-bronze:
+        condition: service_started
+      worker-silver:
+        condition: service_started
+      worker-gold:
+        condition: service_started
+
+volumes:
+  rabbitmq_data_313:
