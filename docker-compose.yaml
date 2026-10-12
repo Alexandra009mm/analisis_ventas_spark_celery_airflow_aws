@@ -73,7 +73,10 @@ services:
   dispatcher:
     <<: *etl-common
     build: .
-    command: ["python3", "dispatch.py"]
+    command:
+      - sh
+      - -c
+      - python3 /app/app/send_data.py && python3 dispatch.py
     depends_on:
       rabbitmq:
         condition: service_healthy

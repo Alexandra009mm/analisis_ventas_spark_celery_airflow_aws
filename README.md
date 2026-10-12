@@ -31,7 +31,6 @@ read_bronze -> clean_silver -> build_gold
 ## Requisitos
 
 - Docker Desktop con Docker Compose.
-- Un archivo `data/raw/sales.csv` con los encabezados requeridos.
 
 Python, Java, Spark y Celery se ejecutan dentro de la imagen Docker; no hace
 falta instalarlos en Windows.
@@ -44,15 +43,16 @@ El CSV debe incluir estas columnas:
 order_id,order_date,customer_id,city,product,quantity,price
 ```
 
-También puedes generar datos de prueba con `data/send.py`. Ejecútalo desde la
-raíz del proyecto:
+El dispatcher ejecuta automáticamente el generador incluido en la imagen.
+También puedes generar el archivo manualmente desde la raíz del proyecto:
 
 ```powershell
 python data/send.py
 ```
 
 El generador reemplaza `data/raw/sales.csv` y crea cinco millones de ventas más
-duplicados. Puede tardar y consumir memoria mientras genera el archivo.
+duplicados. Escribe las filas progresivamente para no guardar todo el conjunto
+en memoria.
 
 ## Ejecutar el ETL
 
@@ -79,14 +79,34 @@ Espera a que RabbitMQ esté saludable y los workers estén activos:
 docker compose ps
 ```
 
-### 3. Encolar una ejecución
+### 3. Generar los datos y encolar una ejecución
 
 ```powershell
 docker compose run --rm --no-deps dispatcher
 ```
 
-El dispatcher encola la cadena de tareas y termina. El trabajo continúa en los
-workers en segundo plano.
+Compose monta `./data` desde el host en `/app/data` (y crea la carpeta local si
+falta). El contenedor `dispatcher` ejecuta primero el generador que viene
+incluido en la imagen; este crea `data/raw/` y reemplaza `sales.csv`. Luego
+encola la cadena Celery y termina. Las tareas crean las carpetas de salida
+Bronze, Silver y Gold al guardar los Parquet.
+
+También puedes iniciar todo el proceso en un solo paso:
+
+```powershell
+docker compose up --build -d
+```
+
+Si quieres repetirlo con nuevos datos después de que el dispatcher haya
+terminado, vuelve a ejecutarlo:
+
+```powershell
+docker compose up -d --force-recreate dispatcher
+```
+
+**Atención:** el dispatcher genera un CSV nuevo cada vez que se ejecuta. Si
+quieres procesar un CSV propio, no uses el comando configurado del dispatcher
+sin quitar primero la llamada a `data/send.py`.
 
 Para seguirlo:
 

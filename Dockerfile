@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ /app/app/
+COPY data/send.py /app/app/send_data.py
 
 WORKDIR /app/app
 
